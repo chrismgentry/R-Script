@@ -1,0 +1,588 @@
+#Packages used in this workshop
+workshop.p<-c("circular","colorspace","dendextend","devtools","faraway","ggcorrplot","ggfortify","ggmap","ggplot2","gplots","glmnet","ISLR","leaps","MASS","rgdal","rgl","rgeos","scatterplot3d","sp","spdep")
+lapply(workshop.p,install.packages(workshop.p),character.only=T)
+
+#--------------------------------------------------------------------------------------------------------#
+
+#Measures of Central Tendency, Descriptive Statistics, t test, ANOVA
+
+#set working directory
+setwd("C:/...")
+
+#Load Data
+Grades <- read.csv("basic_stats.csv")
+
+#Basic Statistics
+summary(Grades)
+
+#Or many other methods to obtain descriptive statistics
+sapply(Grades, var) #mean #sd #median
+lapply(Grades, var) #mean #sd #median
+var(Grades$Fall.2008) #mean #sd #median
+
+#t-Test Analysis
+t.test(Grades$Fall.2008, Grades$Fall.2009)
+t.test(Grades$Fall.2008, Grades$Fall.2011)
+
+# One-WayANOVA
+grades.anova <- read.csv("grades_example.csv")
+library("ggplot2", lib.loc="~/R/win-library/3.4")
+
+#Create Box Plot of Data
+ggplot(grades.anova, aes(x = Group, y = Total_Points)) + geom_boxplot(fill = "grey80", colour = "blue") + scale_x_discrete() + labs(x="Class", y="Total Points", title="Box Plot of Means") + theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+#Plot Means
+library("gplots", lib.loc="~/R/win-library/3.4")
+plotmeans(grades.anova$Total_Points~grades.anova$Group,xlab="Groups", ylab="Total Points", main="Mean Plot with 95% CI")
+
+#One-Way ANOVA
+grades.model.aov <- aov(Total_Points~Group, data=grades.anova)
+summary(grades.model.aov)
+model.tables(grades.model.aov)
+TukeyHSD(grades.model.aov)
+
+#Correlations
+library(ggcorrplot)
+climate<-read.csv("climate_data.csv")
+correlation<-round(cor(climate),2)
+ggcorrplot(correlation, hc.order = TRUE, type = "lower", lab = TRUE, lab_size = 3, sig.level = 0.05, p.mat = NULL, insig="pch", pch="*", method="square", colors = c("tomato2", "white", "springgreen3"), title="Correlogram of Growing Season Climate Variables", legend.title="Correlation", ggtheme=theme_bw)
+
+#Regression, grades vs attendance
+lm.data<-read.csv("lm_grades_attendance.csv")
+lm.model<-lm(Total.Points~Attendance, data=lm.data)
+lm.coef<-round(coef(lm.model), 2)
+plot(lm.data$Attendance,lm.data$Total.Points, pch = 21, cex = 1.3, col = "black", bg="gray", main = "Total Points vs Attendance",xlab="Attendance", ylab="Total Points")
+abline(lm.model, col="red")
+r2<-round(summary(lm.model)$r.squared,2)
+mtext(bquote(r^2==.(r2)*" "),line=-18,adj=1, padj=0) #only r2
+#equation+r2 mtext(bquote(y==.(lm.coef[2])*x+.(lm.coef[1])*","~~r^2==.(r2)*" "),line=-18,adj=1, padj=0)
+
+#Rose Diagram Circular and ggplot2
+#Data collected by an undergradaute researcher and PRS recipient in Geosciences 
+eolian<-read.csv("eolian.csv")
+library(circular)
+eolian.x<-circular(eolian$Azimuth, type="directions", units="degrees", rotation="clock", zero=pi/2)
+rose.diag(eolian.x,pch = 20,cex = 1,shrink = 1,col="blue",prop = 2,bins=36,units="degrees",main="Rose Diagram",axes=TRUE,tick=TRUE, tcl = .1,radii.scale=c("sqrt"))
+ggplot(data=eolian,aes(x=Azimuth,y=Thickness,fill=Bedform))+geom_bar(stat="identity",width=10, position="identity")+coord_polar(theta="x",start=0, direction = 1)+scale_color_identity(guide = "legend")+xlab("")+ylab("")+theme(axis.text.x = element_text())+scale_y_continuous()+scale_x_continuous(breaks=seq(0, 360, by=30), expand=c(0,0), lim=c(0, 360))+theme_bw()+theme(panel.border = element_blank(),panel.background = element_blank())
+
+#--------------------------------------------------------------------------------------------------------#
+
+# Regression models Part 1
+
+# Simulated example
+x1 <- rnorm(500, 0, 10)
+x2 <- rnorm(500, 0, 20)
+y0 <- 25 + -x1 +2*x2 + 7*x1*x2
+
+# Some basic plots
+windows()
+par(mfrow=c(2,2))
+hist(x1, right=FALSE)
+qqnorm(x1, main="Normal Probability Plot for x1")
+qqnorm(x2, main="Normal Probability Plot for x2")
+boxplot(x1, x2, horizontal=T, main="Boxplots of x1 and x2")
+
+# Need these packages:
+library(rgl)
+library(scatterplot3d)
+
+# Make a "perfect" plot
+plot3d(x1, x2, y0, col="blue", size=3, main="Common Response Std. Dev. = 0")
+
+# Make some normal errors
+err <- rnorm(500, 0, 1)
+
+# Three more graphs, increasing the error 
+open3d()
+y1 <- 25 + -x1 +2*x2 + 7*x1*x2 + 30*err
+plot3d(x1, x2, y1, col="red", size=3, main="Common Response Std. Dev. = 30")
+
+open3d()
+y2 <- 25 + -x1 +2*x2 + 7*x1*x2 + 300*err
+plot3d(x1, x2, y2, col="green", size=3, main="Common Response Std. Dev. = 300")
+
+open3d()
+y3 <- 25 + -x1 +2*x2 + 7*x1*x2 + 1300*err
+plot3d(x1, x2, y3, col="purple", size=3, main="Common Response Std. Dev. = 1300")
+
+# Get coefficient estimates using matrix multiplication:
+X <- cbind(rep(1, 500), x1, x2, x1*x2)
+b0 <- solve(t(X) %*% X) %*% t(X) %*% y0 ## blue
+b1 <- solve(t(X) %*% X) %*% t(X) %*% y1 ## red
+b2 <- solve(t(X) %*% X) %*% t(X) %*% y2 ## green
+b3 <- solve(t(X) %*% X) %*% t(X) %*% y3 ## purple
+
+# Or, use the built-in lm() command to get coefficient estimates:
+out0 <- lm(y0 ~ x1*x2)
+out1 <- lm(y1 ~ x1*x2)
+out2 <- lm(y2 ~ x1*x2)
+out3 <- lm(y3 ~ x1*x2)
+
+# The "one-m-sumary" from the faraway package gives less output
+library(faraway)
+sumary(out0)
+sumary(out1)
+sumary(out2)
+sumary(out3)
+
+# Checking residuals...
+windows()
+par(mfrow=c(2,2))
+plot(out0, main="Blue, no error")
+windows()
+par(mfrow=c(2,2))
+plot(out1, main="Red, sd=30")
+windows()
+par(mfrow=c(2,2))
+plot(out2, main="Green, sd=300")
+windows()
+par(mfrow=c(2,2))
+plot(out3, main="Purple, sd=1300")
+
+#Method of Best Subsets Part 2
+
+library(ISLR)
+# ISLR = Introduction to Statistical Learning with 
+# Applications in R, by James, Witten, Hastie, Tibshirani
+
+# In case you didn't know, you can edit data
+# this way:
+newHitters <- edit(Hitters)
+
+# Or just view...
+View(Hitters)
+
+# First 5 rows...
+head(Hitters, n=5)
+
+# Variable names...
+names(Hitters)
+
+# Numbers of rows and columns...
+dim(Hitters)
+
+# Number of missing values for a variable...
+sum(is.na(Hitters$Salary))
+hitrs = na.omit(Hitters)
+dim(hitrs)
+sum(is.na(hitrs))
+
+# leaps is required for regsubsets()
+library(leaps)  
+hitrs.bss.out = regsubsets(Salary~., hitrs, nbest = 1, nvmax = NULL, force.in = NULL, force.out = NULL, method = "exhaustive")
+summary(hitrs.bss.out)
+
+#  For each value number of variables, regsubsets()
+#  ranks the models acording to R^2 
+#  (or equivalently MSE, SSE, RSS, AIC, BIC/SBC)
+
+reg.summary = summary(hitrs.bss.out)
+names(hitrs.bss.out)
+
+# R^2 values for the 19 respective models
+reg.summary$rsq
+# Note the diminishing returns...  5, 6 or 7 
+# predictors might suffice...
+
+# Get new graph window and partition it 2x2
+windows()
+par(mfrow=c(2,2))
+
+# Plotting SSE, Adjusted R^2, Mallow's Cp, and BIC/SBC vs.
+# number of variables.  We like models with low SSE, Cp, 
+# and BIC/SBC, high adjusted R^2...
+plot(reg.summary$rss, xlab = "Number of Variables", ylab="SSE", type="l")
+plot(reg.summary$adjr2, xlab = "Number of Variables", ylab="Adjusted RSq", type="l")
+which.max(reg.summary$adjr2)
+points(11, reg.summary$adjr2[11], col="red", cex=2, pch=20)
+plot(reg.summary$cp, xlab="Number of Variables", ylab = "Cp", type = 'l')
+which.min(reg.summary$cp)
+points(10, reg.summary$cp[10], col="red", cex=2, pch=20)
+which.min(reg.summary$bic)
+plot(reg.summary$bic, xlab="Number of Variables", ylab="BIC", type='l')
+points(6, reg.summary$bic[6], col="red", cex=2, pch=20)
+
+# To plot these quantities against the actual variables
+# selected for best models...
+windows()
+par(mfrow=c(2,2))
+plot(hitrs.bss.out, scale="r2")
+plot(hitrs.bss.out, scale="adjr2")
+plot(hitrs.bss.out, scale="Cp")
+plot(hitrs.bss.out, scale="bic")
+
+# You can see the model with the lowest BIC (at -150) 
+# is the one with seven parameters, or six variables.  
+# We can extract that model and its coefficients:
+
+coef(hitrs.bss.out, 6)
+
+#Stepwise Regression Part 3
+
+library(ISLR)
+library(leaps)
+
+# Forward search...
+regfit.fwd <- regsubsets(Salary~., data=Hitters, nvmax = 19, method="forward")
+summary(regfit.fwd)
+
+# Backward search...
+regfit.bwd <- regsubsets(Salary~., data=Hitters, nvmax = 19, method="backward")
+summary(regfit.bwd)
+
+# Exhaustive seach (method of best subsets)
+regfit.full <- regsubsets(Salary~., data = Hitters, nvmax=19)
+
+# Comparing the models with 7 predictors for each method
+# (note they're different)
+coef(regfit.fwd ,7)
+coef(regfit.bwd ,7)
+coef(regfit.full, 7)
+
+# Can perform stepwise regression w.r.t. AIC, and 
+# can select direction ("forward", "backward", or "both")
+library(MASS)
+fit <- lm(Salary ~ ., data=Hitters)
+step <- stepAIC(fit, direction="both")
+
+#Ride Regression Part 4
+
+library(ISLR)
+Hitters <- na.omit(Hitters)
+head(Hitters)
+x <- model.matrix(Salary~., Hitters)[,-1]
+y <- Hitters$Salary
+head(x)
+
+# The function model.matrix() creates the "X" matrix 
+# from the data. Note we've left out the Salary 
+# column (the response) in the same step. Note also 
+# this function converts categorical variables 
+# to coded/indicator ones.  This is important 
+# because glmnet() only accepts quantitative values.
+
+library(glmnet)
+grid <- 10^seq(10, -2, length = 100)
+ridge.mod <- glmnet(x,y, alpha = 0, lambda=grid)
+# When alpha = 0, glmnet() performs ridge regression; 
+# alpha = 1 triggers lasso (coming up next). Also, the 
+# glmnet() function standardizes each variable by 
+# default so they are on the same scale. You can turn 
+# this option off with standardize = FALSE. A vector
+# of ridge regression coefficients is stored for each 
+# value of lambda (the tuning parameter).
+
+dim(coef(ridge.mod))
+# Large tuning parameter values should correspond to 
+# smaller parameter estimates (so their L2 norm is 
+# smaller).  For example, let's compare the parameter
+# estimates and L2 norms for lambda = 46415.89 and 
+# lambda = 2848.036 (these are the 45th and 55th lambda 
+# values in the grid, respectively).
+ridge.mod$lambda[45]
+ridge.mod$lambda[55]
+
+# Get coefficients for ridge regression when lambda = 45
+coef(ridge.mod)[,45]
+# L2 norm
+sqrt(sum(coef(ridge.mod)[-1,45]^2))
+
+# Get coefficients for ridge regression when lambda = 55
+coef(ridge.mod)[,55]
+# L2 norm
+sqrt(sum(coef(ridge.mod)[-1,55]^2))
+
+# Split the set of observations into a training set 
+# and a test set in order to estimate
+# the ridge regression test error:
+set.seed(1)
+train=sample(1:nrow(x), nrow(x)/2)
+test=(-train)
+y.test=y[test]
+ridge.mod=glmnet(x[train,], y[train], alpha=0, lambda=grid, thresh=1e-12)
+ridge.pred=predict(ridge.mod, s=4, newx=x[test,])
+
+# Test MSE when lambda = 4
+mean((ridge.pred-y.test)^2)
+
+# Test MSE when model just has an intercept term (no predictors)
+mean((mean(y[train])-y.test)^2)
+
+# Alternative we to get test MSE for model with only an intercept:
+# when lambda = 10^10 (essentially only a bias term)
+ridge.pred=predict(ridge.mod, s = 1e10, newx=x[test,])
+mean((ridge.pred-y.test)^2)
+
+# So lambda = 4 results in lower test MSE than a model 
+# with just the intercept term (comparing the above test
+# MSE values)  
+
+# We can also compare to
+# the full model by setting lambda = 0:
+ridge.pred=predict(ridge.mod, s=0, newx=x[test,], x=x, y=y)
+mean((ridge.pred-y.test)^2)
+lm(y~x, subset=train)
+predict(ridge.mod, s=0, exact=T, type = "coefficients", x=x, y=y)[1:20,]
+
+# We can use cross-validation to choose the tuning 
+# parameter value. The cv.glmnet performs ten-fold 
+# cross-validation by default, which you can change 
+# with folds=9, etc.
+
+set.seed(1)  # So we all get the same fold partitioning...
+cv.out = cv.glmnet(x[train,], y[train], alpha=0)
+windows()
+plot(cv.out)
+bestlam=cv.out$lambda.min
+bestlam
+# The test MSE associated with this error is
+ridge.pred <- predict(ridge.mod, s = bestlam, newx=x[test,])
+mean((ridge.pred-y.test)^2)
+
+# Finally, refit the ridge regression model on the full data set using lambda chosen by cross validation and examine the coefficient estimates. Note none of them are zero.
+
+out=glmnet(x, y, alpha=0)
+predict(out, type="coefficients", s = bestlam)[1:20,]
+
+#Lasso Regression Part 5
+
+# alpha=1 in glmnet triggers lasso regression.
+
+lasso.mod=glmnet(x[train,], y[train], alpha=1, lambda=grid)
+plot(lasso.mod)
+
+# Apply cross-validation to arrive at a value for the 
+# tuning parameter lambda:
+
+set.seed(1)
+cv.out <- cv.glmnet(x[train,], y[train], alpha=1)
+
+# Plotting test MSE vs. log(lambda)
+windows()
+plot(cv.out)
+bestlam = cv.out$lambda.min
+lasso.pred = predict(lasso.mod, s=bestlam, newx=x[test,])
+
+# Test MSE for this model:
+mean((lasso.pred - y.test)^2)
+
+# This test MSE is lower than that of the null 
+# and least-squares models, and similar
+# to that of the one chosen by ridge regression 
+# with cross validation. A major advantage of lasso 
+# over ridge regression is several of the coeficients 
+# are 0:
+out = glmnet(x, y, alpha=1, lambda=grid)
+lasso.coef=predict(out, type = "coefficients", s=bestlam)[1:20,]
+lasso.coef
+
+#--------------------------------------------------------------------------------------------------------#
+
+#Simple Google Map with Points
+
+#set working directory
+setwd("C:/...")
+
+#Load Data
+ZionPoints <- read.csv("ZPoints.csv")
+
+#Load Packages
+library("ggmap", lib.loc="~/R/win-library/3.4")
+library("ggplot2", lib.loc="~/R/win-library/3.4")
+
+#Generic Terrain Basemap
+ZionMap <- get_map(location = c(lon = mean(ZionPoints$lon), lat = mean(ZionPoints$lat)), zoom = 12, scale = "auto", maptype = c("terrain"), source = ("google"))
+
+#get_map is the function in ggmap that locates the image from Google or other sources
+#location = identifies where the map will be centered. I used the mean value of all the x and y locations to create a "centroid". You could also input directly.
+#zoom identifies the level of magnification (you may have to adjust for your work)
+#scale is a multiplicative factor for the number of pixels returned
+#maptype is the "look" of the basemap
+#source is where the image is acquired 
+
+#Draw Map
+ggmap(ZionMap) + geom_point(data = ZionPoints, aes(x = lon, y = lat, fill=Location), size = 5, color="white", pch=21) + labs(x="Longitude", y="Latitude", title="Site Locations in Zion National Park") + theme(plot.title = element_text(hjust = 0.5, face = "bold")) + theme(axis.title = element_text(face = "italic"), axis.text.y = element_text(angle=90, hjust = .5)) + theme(legend.position = c(.875,.925), legend.title = element_text(face = "italic"), legend.direction = "vertical", legend.title.align = .5, legend.key = element_blank())
+
+#ggmap() is the function to plot an object
+#geom_point is used to create a scatterplot of x,y coordinates
+#aes is the aesthetics for mapping
+#fill= sets the color of the symbol to vary based on a category
+#size = sets the size of the symbol
+#color= sets the color of the symbol or outline if not fill is indicated
+#pch= is the type of symbol used; 21 is a filled circle with a border
+#labs() provides options for labelling
+#hjust = 0.5 centers text
+#face = "bold" creates bolded text
+#face = "italics" creates italicized text
+#angle=90 rotates text; notice the y-axis labels are rotated
+#legend.position = places the legend object on a specific location; other options could be "bottom", "left", "right", etc.
+#legend.direction = assigns directionality to the creation of the legend; "vertical" and "horizontal"
+#legend.title.align = centers the legend title
+#legend.key = element_blank()) removes the bounding box from the legend and legend elements
+
+#--------------------------------------------------------------------------------------------------------#
+
+#Creating and Plotting Spatial Regression Results
+
+#working directory
+setwd('C:/...')
+
+#load packages
+library("rgdal", lib.loc="~/R/win-library/3.4")
+library("rgeos", lib.loc="~/R/win-library/3.4")
+library("sp", lib.loc="~/R/win-library/3.4")
+library("spdep", lib.loc="~/R/win-library/3.4")
+
+#reading files
+chpov.SATL<-read.csv('chpov_satl_july17.csv')
+rownames(chpov.SATL)<-chpov.SATL$fips
+
+#creating county shapes
+SATL.shape<-readOGR(dsn="C:/...",layer="SATL_2016")
+
+#creating neighbors
+SATL.neighb.data<-poly2nb(SATL.shape, queen=T, row.names = SATL.shape$FIPS)
+
+#creating list of neighbors
+SATL.cont.neighb<-nb2listw(SATL.neighb.data,style="W", zero.policy = TRUE, row.names(SATL.neighb.data$FIPS))
+
+#creating xy data for all counties
+SATL.xy<-cbind(chpov.SATL$x,chpov.SATL$y)
+rownames(SATL.xy)<-chpov.SATL$fips
+colnames(SATL.xy)<-cbind("x","y")
+
+#ols
+olsreg.SATL <-lm(lnchildpov_under18 ~ rural + urban +lnmanufacturing + lnag + lnretail + lnhealth + lnconstruction + lnless_hs + lnunemployment +lnincome_ratio  + lnteenbirth + lnunmarried + lnsingle_mom + lnsevere_housing  + lnuninsured + lnblack + lnhispanic, data=chpov.SATL)
+
+#spatial lag regression model based on contiguity
+SATL.sp.lag<-lagsarlm(lnchildpov_under18 ~ rural+lnless_hs+lnunemployment+lnag+lnmanufacturing+lnretail+lnconstruction+lnhealth+lnblack+lnhispanic+lnuninsured+lnincome_ratio+lnsevere_housing+urban+lnteenbirth+lnsingle_mom+lnunmarried, data=chpov.SATL, SATL.cont.neighb)
+
+#creating centroid distance values
+SATL.dist.k5<-knn2nb(knearneigh(SATL.xy, k=5, longlat = TRUE))
+
+#determining max k neighbors
+SATL.max.k5<-max(unlist(nbdists(SATL.dist.k5, SATL.xy, longlat=TRUE)))
+
+#calculating neighbors based on distance
+SATL.sp.dist.k5<-dnearneigh(SATL.xy, d1=0, d2=1 * SATL.max.k5, longlat = TRUE)
+
+#creating distance neighbors list
+SATL.dist.neighb.k5<-nb2listw(SATL.sp.dist.k5,style="W", zero.policy = TRUE)
+
+#spatial lag regression model based on distance
+SATL.dist.lag.k5<-lagsarlm(lnchildpov_under18 ~ rural+lnless_hs+lnunemployment+lnag+lnmanufacturing+lnretail+lnconstruction+lnhealth+lnblack+lnhispanic+lnuninsured+lnincome_ratio+lnsevere_housing+urban+lnteenbirth+lnsingle_mom+lnunmarried, data=chpov.SATL, SATL.dist.neighb.k5)
+
+#combining data for OLS mapping
+chpov.SATL.olsmap<-cbind(SATL.shape, olsreg.SATL$fitted.values, olsreg.SATL$residuals)
+names(chpov.SATL.olsmap)[58] <- "fitted"
+names(chpov.SATL.olsmap)[59] <- "residual"
+
+#combining data for spatial lag contiguity map
+chpov.SATL.contmap<-cbind(SATL.shape, SATL.sp.lag$fitted.values, SATL.sp.lag$residuals)
+names(chpov.SATL.contmap)[58] <- "fitted"
+names(chpov.SATL.contmap)[59] <- "residual"
+
+#combining data for spatial lag distance map
+chpov.SATL.slagmap<-cbind(SATL.shape, SATL.dist.lag.k5$fitted.values, SATL.dist.lag.k5$residuals)
+names(chpov.SATL.slagmap)[58] <- "fitted"
+names(chpov.SATL.slagmap)[59] <- "residual"
+
+#Polygon mapping of regression data
+spplot(chpov.SATL.slagmap, "fitted", main = "Child Poverty in the South Atlantic Region", sub = "Plot of Predicted Values", col = "black")
+spplot(chpov.SATL.slagmap, "residual", main = "Child Poverty in the South Atlantic Region", sub = "Plot of Residual Values", col = "black")
+
+#--------------------------------------------------------------------------------------------------------#
+
+#clear R's brain; gets rid of previous objects that may conflict
+rm(list=ls())
+
+library(dendextend) #if dendextend has already been installed
+library(ggfortify) #if ggfortify has already been installed
+library(devtools) #if devtools has already been installed
+
+#source of clustering example: https://cran.r-project.org/web/packages/dendextend/vignettes/Cluster_Analysis.html
+#source of PCA example: https://cran.r-project.org/web/packages/ggfortify/vignettes/plot_pca.html
+
+#Background: The famous (Fisher’s or Anderson’s) iris data set gives the measurements in centimeters of the variables sepal length and width and petal length and width, respectively, for 50 flowers from each of 3 species of iris. The species are Iris setosa, Iris versicolor, and Iris virginica. (from ?iris)
+
+#call the helpfile to learn more about the iris data set.
+?iris 
+
+#get the iris data from dendextend package
+#define variables
+iris <- datasets::iris
+iris2 <- iris[,-5]
+species_labels <- iris[,5]
+library(colorspace) # get nice colors
+species_col <- rev(rainbow_hcl(3))[as.numeric(species_labels)]
+
+#make a scatterplot matrix to visualize data
+pairs(iris2, col = species_col, lower.panel = NULL, cex.labels=2, pch=19, cex = 1.2)
+
+# Add a legend to scatterplot
+par(xpd = TRUE)
+legend(x = 0.05, y = 0.4, cex = 2, legend = as.character(levels(species_labels)), fill = unique(species_col))
+par(xpd = NA)
+
+#interpretation: We can see that Iris setosa is morphologically distinct from versicolor and virginica (they have lower petal length and width). But versicolor and virginica cannot easily be separated based on measurements of their sepal and petal width/length.
+#Lets look at this another way, using hierarchical clustering (another visual technique to see natural groupings in the data.
+#The default hierarchical clustering method in hclust is “complete”. We can visualize the result of running it by turning the object to a dendrogram and making several adjustments to the object, such as: changing the labels, coloring the labels based on the real species category, and coloring the branches based on cutting the tree into three clusters.
+
+d_iris <- dist(iris2) # method="man" # is a bit better
+hc_iris <- hclust(d_iris, method = "complete")
+iris_species <- rev(levels(iris[,5]))
+
+library(dendextend)
+dend <- as.dendrogram(hc_iris)
+# order it the closest we can to the order of the observations:
+dend <- rotate(dend, 1:150)
+
+# Color the branches based on the clusters:
+dend <- color_branches(dend, k=3) #, groupLabels=iris_species)
+
+# Manually match the labels, as much as possible, to the real classification of the flowers:
+labels_colors(dend) <- rainbow_hcl(3)[sort_levels_values(as.numeric(iris[,5])[order.dendrogram(dend)])]
+
+# We shall add the flower type to the labels:
+labels(dend) <- paste(as.character(iris[,5])[order.dendrogram(dend)],"(",labels(dend),")", sep = "")
+
+# We hang the dendrogram a bit:
+dend <- hang.dendrogram(dend,hang_height=0.1)
+# reduce the size of the labels:
+# dend <- assign_values_to_leaves_nodePar(dend, 0.5, "lab.cex")
+dend <- set(dend, "labels_cex", 0.5)
+# And plot:
+par(mar = c(3,3,3,7))
+plot(dend, main = "Clustered Iris data set (the labels give the true flower species)", horiz =  TRUE,  nodePar = list(cex = .007))
+legend("topleft", legend = iris_species, fill = rainbow_hcl(3))
+
+#### BTW, notice that:
+# labels(hc_iris) # no labels, because "iris" has no row names
+# is.integer(labels(dend)) # this could cause problems...
+# is.character(labels(dend)) # labels are no longer "integer"
+
+#Now visualize data using Pricipal Component Analysis 
+#It is really easy. You just have to call the "prcomp" function. You might want (and it is advisable) to make all your variables have mean=0 and variance=1 (zero mean and unit variance). To do that, we have to use the arguments "center" and "scale.". Note that we are only using our quantitative variables (first 4 columns of iris data set).
+
+library(ggfortify)
+iris.pca <- iris[,1:4]
+pca<-prcomp((iris.pca), scale.=TRUE, center=TRUE)
+summary(pca)
+eval<-apply(pca$x,2,var)
+prop.var<-eval/sum(eval)
+autoplot(pca, scale = 0, loadings = TRUE, loadings.label = TRUE, xlab=bquote(PC1*" "*"("*.(round(prop.var[1],4)*100)*"%"*" "*Variance*" "*Explained*")"), ylab=bquote(PC2*" "*"("*.(round(prop.var[2],4)*100)*"%"*" "*Variance*" "*Explained*")")) #bquote used to insert calculated values for axis labels
+autoplot(pca, data=iris, scale=0, subsetscale = 0, loadings = TRUE, loadings.label = TRUE, colour='Species', frame = TRUE, frame.type = 'norm', xlab="PC1 (72.96% Variance Explained)", ylab="PC2 (22.85% Variance Explained)")+theme(panel.border = element_blank(),panel.background = element_blank())
+
+# We can see that Petal Length, Petal Width and Sepal length are positively explained by the first principal component, while the Sepal Width is negatively explained by it. Also, the second principal component was only able to negatively explain Sepal Width and Sepal Length. It is good to call our "correlations" object which we previously created to see the magnitude of how much each principal component is able to explain about the variables. We can also see that Iris setosa (red group) is the most distinct species in relation to the measured variables, while Iris versicolor and Iris virginica were relatively very similar to each other.
+
+#--------------------------------------------------------------------------------------------------------#
+
+Additional Useful Code:
+names(mydata) # Lists the names of variables within mydata (also visible with attributes(), as above).
+str(mydata) # Shows the structure ("5 obs[ervations] of 3 variables... x is ...  f is a factor with 2 levels..." etc.)
+levels(factor) # Shows the levels of a factor
+dim(object) # Shows an object's dimensions
+class(object) # Shows an object's class (e.g. numeric, matrix, dataframe)
+head(mydata, n=3) # Shows the first 3 rows
+tail(mydata, n=3) # Shows the last 3 rows
+typeof() #displays the data type (e.g. list, double, S4)
